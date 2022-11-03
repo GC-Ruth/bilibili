@@ -4,12 +4,24 @@ import os
 import requests
 import re
 import ffmpeg
+from tqdm import tqdm
 from lxml import etree
 headers = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36 Edg/106.0.1370.52',
     'referer': 'https://www.bilibili.com/'
 }       # UA伪装和防盗链
-
+print(''' ▄▄▄▄▄▄▄▄▄▄  ▄▄▄▄▄▄▄▄▄▄▄  ▄            ▄▄▄▄▄▄▄▄▄▄▄       ▄▄▄▄▄▄▄▄▄▄  ▄▄▄▄▄▄▄▄▄▄▄  ▄            ▄▄▄▄▄▄▄▄▄▄▄ 
+▐░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░▌          ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░▌          ▐░░░░░░░░░░░▌
+▐░█▀▀▀▀▀▀▀█░▌▀▀▀▀█░█▀▀▀▀ ▐░▌           ▀▀▀▀█░█▀▀▀▀      ▐░█▀▀▀▀▀▀▀█░▌▀▀▀▀█░█▀▀▀▀ ▐░▌           ▀▀▀▀█░█▀▀▀▀ 
+▐░▌       ▐░▌    ▐░▌     ▐░▌               ▐░▌          ▐░▌       ▐░▌    ▐░▌     ▐░▌               ▐░▌     
+▐░█▄▄▄▄▄▄▄█░▌    ▐░▌     ▐░▌               ▐░▌          ▐░█▄▄▄▄▄▄▄█░▌    ▐░▌     ▐░▌               ▐░▌     
+▐░░░░░░░░░░▌     ▐░▌     ▐░▌               ▐░▌          ▐░░░░░░░░░░▌     ▐░▌     ▐░▌               ▐░▌     
+▐░█▀▀▀▀▀▀▀█░▌    ▐░▌     ▐░▌               ▐░▌          ▐░█▀▀▀▀▀▀▀█░▌    ▐░▌     ▐░▌               ▐░▌     
+▐░▌       ▐░▌    ▐░▌     ▐░▌               ▐░▌          ▐░▌       ▐░▌    ▐░▌     ▐░▌               ▐░▌     
+▐░█▄▄▄▄▄▄▄█░▌▄▄▄▄█░█▄▄▄▄ ▐░█▄▄▄▄▄▄▄▄▄  ▄▄▄▄█░█▄▄▄▄      ▐░█▄▄▄▄▄▄▄█░▌▄▄▄▄█░█▄▄▄▄ ▐░█▄▄▄▄▄▄▄▄▄  ▄▄▄▄█░█▄▄▄▄ 
+▐░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌     ▐░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌
+ ▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀       ▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀ 
+                                                                                                           --by 空白''')
 
 def 视频下载():
     url = f'https://www.bilibili.com/video/{input("输入BV号：")}'
@@ -28,24 +40,34 @@ def 视频下载():
     print('正在解析网址...')
     time.sleep(1)
     print('正在下载视频文件...')
-    video_data = requests.get(url=video_url, headers=headers, stream=True).content      # 视频资源请求
-    print('正在下载音频文件...')
-    audio_data = requests.get(url=audio_url, headers=headers, stream=True).content      # 音频资源请求
-    with open('./video.mp4', 'wb') as 视频:       # 保存视频到本地
-        视频.write(video_data)
-    with open('./audio.mp3', 'wb') as 音频:       # 保存音频到本地
-        音频.write(audio_data)
-    print('下载完成')
+    video_data = requests.get(url=video_url, headers=headers, stream=True)      # 视频资源请求
+    video_size = int(video_data.headers['Content-Length'])/1024/1024    # 视频大小请求
+    with open('./video.mp4', 'wb') as 视频:
+        for v_data in tqdm(iterable=video_data.iter_content(1024*1024),   # 进度条模块
+             total=video_size,
+             desc='视频',
+             unit='MB'):
+            视频.write(v_data)      # 保存视频到本地
+    audio_data = requests.get(url=audio_url, headers=headers, stream=True)    # 音频资源请求
+    audio_size = int(audio_data.headers['Content-Length'])/1024/1024
+    with open('./audio.mp3', 'wb') as 音频:
+        for a_data in tqdm(iterable=audio_data.iter_content(1024*1024),
+                           total=audio_size,
+                           desc='音频',
+                           unit='MB'):
+            音频.write(a_data)
     time.sleep(0.5)
+    print('下载完成')
     print('正在合成视频，请等待...')
     time.sleep(1)
     video = ffmpeg.input('./video.mp4')
     audio = ffmpeg.input('./audio.mp3')
-    out = ffmpeg.output(video, audio, f'./{title}.mp4')     #利用ffmpeg模块合成视频音频
+    out = ffmpeg.output(video, audio, f'./{title}.mp4')     # 利用ffmpeg模块合成视频音频
     out.run()
     os.remove('./video.mp4')
     os.remove('./audio.mp3')
     print('视频已保存至当前目录！！！')
+    time.sleep(1)
 
 
 def 合集下载():
@@ -81,15 +103,25 @@ def 合集下载():
         print('正在解析网址...')
         time.sleep(1)
         print('正在下载视频文件...')
-        video_data = requests.get(url=video_url, headers=headers, stream=True).content
-        print('正在下载音频文件...')
-        audio_data = requests.get(url=audio_url, headers=headers, stream=True).content
+        video_data = requests.get(url=video_url, headers=headers, stream=True)
+        video_size = int(video_data.headers['Content-Length'])/1024/1024
         with open(f'./{title}/video.mp4', 'wb') as 视频:
-            视频.write(video_data)
+            for v_data in tqdm(iterable=video_data.iter_content(1024*1024),
+                               total=video_size,
+                               desc='视频',
+                               unit='MB'):
+                视频.write(v_data)
+        print('正在下载音频文件...')
+        audio_data = requests.get(url=audio_url, headers=headers, stream=True)
+        audio_size = int(audio_data.headers['Content-Length'])/1024/1024
         with open(f'./{title}/audio.mp3', 'wb') as 音频:
-            音频.write(audio_data)
-        print('下载完成')
+            for a_data in tqdm(iterable=audio_data.iter_content(1024*1024),
+                               total=audio_size,
+                               desc='音频',
+                               unit='MB'):
+                音频.write(a_data)
         time.sleep(0.5)
+        print('下载完成')
         print('正在合成视频，请等待...')
         time.sleep(1)
         video = ffmpeg.input(f'./{title}/video.mp4')
@@ -107,7 +139,7 @@ def 番剧下载():
     video_obj = '"base_url":"(.*?)",".*?'
     audio_obj = '"audio".*?"base_url":"(.*?)","'
     vip_obj = '"data".*?"accept_format":"(.*?)","'
-    page_text = requests.get(url=url, headers=headers).text
+    page_text = requests.get(url=url, headers=headers, stream=True).text
     tree = etree.HTML(page_text)
     title = tree.xpath('/html/head/meta[7]/@content')[0]
     title = title.replace('/', '~')
@@ -135,15 +167,25 @@ def 番剧下载():
         print('正在解析网址...')
         time.sleep(1)
         print('正在下载视频文件...')
-        video_data = requests.get(url=video_url, headers=headers, stream=True).content
-        print('正在下载音频文件...')
-        audio_data = requests.get(url=audio_url, headers=headers, stream=True).content
+        video_data = requests.get(url=video_url, headers=headers, stream=True)
+        video_size = int(video_data.headers['Content-Length'])/1024/1024
         with open(f'./{title}/video.mp4', 'wb') as 视频:
-            视频.write(video_data)
+            for v_data in tqdm(iterable=video_data.iter_content(1024*1024),
+                               total=video_size,
+                               desc='视频',
+                               unit='MB'):
+                视频.write(v_data)
+        print('正在下载音频文件...')
+        audio_data = requests.get(url=audio_url, headers=headers, stream=True)
+        audio_size = int(audio_data.headers['Content-Length'])/1024/1024
         with open(f'./{title}/audio.mp3', 'wb') as 音频:
-            音频.write(audio_data)
-        print('下载完成')
+            for a_data in tqdm(iterable=audio_data.iter_content(1024*1024),
+                               total=audio_size,
+                               desc='音频',
+                               unit='MB'):
+                音频.write(a_data)
         time.sleep(0.5)
+        print('下载完成')
         print('正在合成视频，请等待...')
         time.sleep(1)
         video = ffmpeg.input(f'./{title}/video.mp4')
@@ -156,18 +198,7 @@ def 番剧下载():
 
 
 def 菜单():
-    print(''' ▄▄▄▄▄▄▄▄▄▄  ▄▄▄▄▄▄▄▄▄▄▄  ▄            ▄▄▄▄▄▄▄▄▄▄▄       ▄▄▄▄▄▄▄▄▄▄  ▄▄▄▄▄▄▄▄▄▄▄  ▄            ▄▄▄▄▄▄▄▄▄▄▄ 
-▐░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░▌          ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░▌          ▐░░░░░░░░░░░▌
-▐░█▀▀▀▀▀▀▀█░▌▀▀▀▀█░█▀▀▀▀ ▐░▌           ▀▀▀▀█░█▀▀▀▀      ▐░█▀▀▀▀▀▀▀█░▌▀▀▀▀█░█▀▀▀▀ ▐░▌           ▀▀▀▀█░█▀▀▀▀ 
-▐░▌       ▐░▌    ▐░▌     ▐░▌               ▐░▌          ▐░▌       ▐░▌    ▐░▌     ▐░▌               ▐░▌     
-▐░█▄▄▄▄▄▄▄█░▌    ▐░▌     ▐░▌               ▐░▌          ▐░█▄▄▄▄▄▄▄█░▌    ▐░▌     ▐░▌               ▐░▌     
-▐░░░░░░░░░░▌     ▐░▌     ▐░▌               ▐░▌          ▐░░░░░░░░░░▌     ▐░▌     ▐░▌               ▐░▌     
-▐░█▀▀▀▀▀▀▀█░▌    ▐░▌     ▐░▌               ▐░▌          ▐░█▀▀▀▀▀▀▀█░▌    ▐░▌     ▐░▌               ▐░▌     
-▐░▌       ▐░▌    ▐░▌     ▐░▌               ▐░▌          ▐░▌       ▐░▌    ▐░▌     ▐░▌               ▐░▌     
-▐░█▄▄▄▄▄▄▄█░▌▄▄▄▄█░█▄▄▄▄ ▐░█▄▄▄▄▄▄▄▄▄  ▄▄▄▄█░█▄▄▄▄      ▐░█▄▄▄▄▄▄▄█░▌▄▄▄▄█░█▄▄▄▄ ▐░█▄▄▄▄▄▄▄▄▄  ▄▄▄▄█░█▄▄▄▄ 
-▐░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌     ▐░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌
- ▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀       ▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀ 
-                                                                                                           --by 空白''')
+
     print('\n1.视频单个下载(输入1)\n2.视频合集下载(输入2)\n3.番剧下载(输入3)\n4.退出程序(输入4)')
     操作 = input('请输入操作：')
     if 操作 == '1':
