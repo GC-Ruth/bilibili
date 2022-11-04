@@ -67,7 +67,6 @@ def 视频下载():
     os.remove('./video.mp4')
     os.remove('./audio.mp3')
     print('视频已保存至当前目录！！！')
-    time.sleep(1)
 
 
 def 合集下载():
