@@ -1,10 +1,14 @@
 import os
 import threading
+import time
 import requests
 import re
+import shutil
 from tqdm import tqdm
 from tkinter import *
 from tkinter import messagebox
+from Crypto.Cipher import AES
+from concurrent.futures import ThreadPoolExecutor
 
 headers = {
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.42',
@@ -153,8 +157,188 @@ class bilibili_collection_video_get:
             return error
 
 
+class yinhua:
+    headers_yh = {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.35",
+        "referer": "http://www.yinghua8.com"
+    }
+
+    def title(self, url):
+        title_obj = '<h1><a href=.*? target="_blank">(.*?)</a><span>(.*?)</span></h1>'
+        page_text = requests.get(url=url, headers=self.headers_yh)
+        page_text.encoding = 'utf-8'
+        page_text = page_text.text
+        title = re.findall(title_obj, page_text)[0][0]
+        num = re.findall(title_obj, page_text)[0][1]
+        return title
+
+    def num(self, url):
+        title_obj = '<h1><a href=.*? target="_blank">(.*?)</a><span>(.*?)</span></h1>'
+        page_text = requests.get(url=url, headers=self.headers_yh)
+        page_text.encoding = 'utf-8'
+        page_text = page_text.text
+        title = re.findall(title_obj, page_text)[0][0]
+        num = re.findall(title_obj, page_text)[0][1]
+        return num
+
+    def url_get(self, url):
+        url_obj = 'https:(.*?)mp4'
+        page_text = requests.get(url=url, headers=self.headers_yh, timeout=5)
+        page_text.encoding = 'utf-8'
+        page_text = page_text.text
+        url = 'https:' + re.findall(url_obj, page_text)[0]
+        m3u8_url = url.replace('$', '')
+        return m3u8_url
+
+    def get_head(self, m3u8_url):
+        head_obj = 'https://.*?/'
+        head = re.findall(head_obj, m3u8_url)[0]
+        return head
+
+    def get_true_play_list(self, m3u8_url, head):
+        fir_obj = '/.*?/.*?/.*?/.*?/.*'
+        true_m3u8 = head + re.findall(fir_obj, requests.get(url=m3u8_url).text)[0]
+        try:
+            true_playlist = requests.get(url=true_m3u8).text
+            true_playlist = re.findall(r'/.*?/.*?/.*?/.*?/.*?.*', true_playlist)
+            true_playlist.pop(0)
+            return true_playlist
+        except Exception as error:
+            return error
+
+    def get_key(self, m3u8_url, head):
+        fir_obj = '/.*?/.*?/.*?/.*?/'
+        key_url = head + re.findall(fir_obj, requests.get(url=m3u8_url).text)[0] + 'key.key'
+        key = requests.get(url=key_url).text
+        return key
+
+    def boom(self, src, src_new, key, title, num):
+        print('视频使用AES-128加密')
+        time.sleep(1)
+        print('正在获取密钥...')
+        time.sleep(1)
+        print(f'密钥获取成功，key={key}\n正在解密..')
+        time.sleep(1)
+        iv = b'0000000000000000'
+        f1 = open(src, 'rb')
+        f2 = open(src_new, 'wb')
+        play_list = f1.read()
+        cipher = AES.new(key.encode('utf-8'), AES.MODE_CBC, iv)
+        data = cipher.decrypt(play_list)
+        if play_list:
+            f2.write(data)
+            print('解密完成！')
+
+    def thread_download(self, playlist, title, num, i, head):
+        try:
+            fin_ts = head + playlist[i]
+            ts = requests.get(url=fin_ts, stream=True, timeout=20).content
+            with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                video.write(ts)
+                print(f'节点{i}下载完成')
+        except Exception as error:
+            try:
+                print(f'节点{i}请求超时，正在重试！')
+                fin_ts = head + playlist[i]
+                ts = requests.get(url=fin_ts, stream=True, timeout=20).content
+                with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                    video.write(ts)
+            except Exception as error2:
+                print(f'节点{i}重试1次失败，2次重试中！')
+                try:
+                    fin_ts = head + playlist[i]
+                    ts = requests.get(url=fin_ts, stream=True, timeout=20).content
+                    with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                        video.write(ts)
+                except Exception as error2:
+                    print(f'节点{i}重试2次失败，3次重试中！')
+                    try:
+                        fin_ts = head + playlist[i]
+                        ts = requests.get(url=fin_ts, stream=True, timeout=20).content
+                        with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                            video.write(ts)
+                    except Exception as error2:
+                        print(f'节点{i}重试3次失败，停止重试！')
+
+    def png_thread_download(self, ts_url_list, title, num, i):
+        ts_url = 'https:' + ts_url_list[i] + 'png'
+        try:
+            ts = requests.get(url=ts_url, stream=True, timeout=30).content
+            with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                video.write(ts)
+                print(f'节点{i}下载完成')
+        except Exception as error:
+            print(f'节点{i}请求超时，正在重试！')
+            try:
+                ts = requests.get(url=ts_url, stream=True, timeout=30).content
+                with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                    video.write(ts)
+            except Exception as error:
+                print(f'节点{i}重试1次失败，2次重试中！')
+                try:
+                    ts = requests.get(url=ts_url, stream=True, timeout=30).content
+                    with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                        video.write(ts)
+                except Exception as error:
+                    print(f'节点{i}重试2次失败，3次重试中！')
+                    try:
+                        ts = requests.get(url=ts_url, stream=True, timeout=30).content
+                        with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                            video.write(ts)
+                    except Exception as error:
+                        print(f'节点{i}重试3次失败，停止重试！')
+
+    def download(self, m3u8_url, title, num, head):
+        ts_obj = 'https:(.*?)png'
+        try:
+            print('正在解析...')
+            play_list = requests.get(url=m3u8_url, headers=self.headers_yh, timeout=20).text
+            if not os.path.exists(f'./{title}'):
+                os.mkdir(f'./{title}')
+            if not os.path.exists(f'./{title}{num}缓存文件夹'):
+                os.mkdir(f'./{title}{num}缓存文件夹')
+            if 'EXTINF' in play_list:
+                if not os.path.exists(f'./{title}'):
+                    os.mkdir(f'./{title}')
+                ts_url_list = re.findall(ts_obj, play_list)
+                print('1')
+                print(len(ts_url_list))
+                if len(ts_url_list) <= 1000:
+                    a = 30
+                else:
+                    a = 50
+                with ThreadPoolExecutor(max_workers=a) as pool1:
+                    for pool_num in range(0, len(play_list)):
+                        pool1.submit(acg.png_thread_download, ts_url_list, title, num, pool_num)
+                    pool1.shutdown()
+                    print('下载完成')
+                os.system(f'cd ./{title}{num}缓存文件夹 && copy /b *.ts video.mp4')
+                shutil.move(f'./{title}{num}缓存文件夹/video.mp4', f'./{title}/{title}{num}.mp4')
+                shutil.rmtree(f'./{title}{num}缓存文件夹')
+            else:
+                playlist = acg.get_true_play_list(m3u8_url, head)
+                print('2')
+                print(len(playlist))
+                if len(playlist) <= 1000:
+                    a = 30
+                else:
+                    a = 50
+                with ThreadPoolExecutor(max_workers=a) as pool2:
+                    for pool_num in range(0, len(playlist)):
+                        pool2.submit(acg.thread_download, playlist, title, num, pool_num, head)
+                    pool2.shutdown()
+                    print('下载完成')
+                os.system(f'cd ./{title}{num}缓存文件夹 && copy /b *.ts video.mp4')
+                key = acg.get_key(m3u8_url, head)
+                acg.boom(f'./{title}{num}缓存文件夹/video.mp4', f'./{title}/{title}{num}.mp4', key, title, num)
+                shutil.rmtree(f'./{title}{num}缓存文件夹')
+        except Exception as error:
+            pass
+
+
 b1 = bilibili_video_get()
 b2 = bilibili_collection_video_get()
+acg = yinhua()
 
 
 def back():
@@ -263,7 +447,7 @@ def update():
     f2.pack_forget()
     f3 = Frame(root, bg='#cdc1ef')
     f3.pack(fill='both', expand=True)
-    l_up = Label(f3,fg='red', bg='#cdc1ef', text='正在生成二维码', font=('黑体', 20))
+    l_up = Label(f3, fg='red', bg='#cdc1ef', text='正在生成二维码', font=('黑体', 20))
     l_up.pack(anchor='center', pady=90)
     params = {
         'data': 'https://github.com/GC-Ruth/bilibili',
@@ -276,8 +460,45 @@ def update():
     img_src = PhotoImage(file='./update.png')
     l_up.pack_forget()
     Label(f3, image=img_src).pack()
-    Label(f3, fg='red', bg='#cdc1ef', text='网页无法打开请使用加速器', font=('黑体', 10)).pack(side='bottom', anchor='center')
-    Button(f3, text='返回', font=('黑体', 20),command=lambda: [f3.pack_forget(), f2.pack(fill='both', expand=True), os.remove('./update.png')]).place(x=160, y=180)
+    Label(f3, fg='red', bg='#cdc1ef', text='网页无法打开请使用加速器', font=('黑体', 10)).pack(side='bottom',
+                                                                                               anchor='center')
+    Button(f3, text='返回', font=('黑体', 20),
+           command=lambda: [f3.pack_forget(), f2.pack(fill='both', expand=True), os.remove('./update.png')]).place(
+        x=160, y=180)
+
+
+def animation():
+    os.system('start http://www.yinghua8.com/japan/')
+    f2.pack_forget()
+    Facg = Frame(root, bg='#cdc1ef')
+    Facg.pack(fill='both', expand=True)
+    en3 = Entry(Facg, width=40)
+    en3.place(x=100, y=50)
+    Label(Facg, text='粘贴网址', font=('黑体', 12), bg='#cdc1ef').place(x=20, y=50)
+    Button(Facg, text='开始下载', font=('黑体', 25), bg='#cdc1ef', command=lambda: thread(acg_download)).place(x=120,y=120)
+    Button(Facg, text='返回', font=('黑体', 20), bg='#cdc1ef', command=lambda: [Facg.pack_forget(),f2.pack(fill='both', expand=True)]).place(x=160, y=185)
+
+    def acg_download():
+        try:
+            url = en3.get()
+            l1 = Label(Facg, text='正在下载', font=('黑体', 18), bg='#cdc1ef', fg='red')
+            l1.place(x=150, y=75)
+            pool = ThreadPoolExecutor(max_workers=10)
+            m3u8_url = pool.submit(acg.url_get, url)
+            title = pool.submit(acg.title, url)
+            head = pool.submit(acg.get_head, acg.url_get(url))
+            num = pool.submit(acg.num, url)
+            m3u8_url = m3u8_url.result()
+            head = head.result()
+            title = title.result()
+            title = title.replace(':', '：')
+            num = num.result()
+            acg.download(m3u8_url, title, num, head)
+            messagebox.showinfo(title='提示', message='下载完成！！！')
+            l1.place_forget()
+        except Exception as error:
+            l1.place_forget()
+            messagebox.showerror(title='错误', message=error)
 
 
 def thread(func):
@@ -290,7 +511,6 @@ root = Tk()
 root.title('B站视频下载器')
 root.attributes('-alpha', 0.95)
 root.geometry('400x250+400+300')
-
 f1 = Frame(root, bg='#cdc1ef')
 en1 = Entry(f1)
 en1.place(x=244, y=20)
@@ -318,7 +538,6 @@ Button(f2, text='下载视频', bg='#8c98b0', width=18, height=2, command=lambda
 Button(f2, text='下载音频', bg='#8c98b0', width=18, height=2, command=lambda: thread(audio_download)).place(x=40, y=120)
 Button(f2, text='合集下载', bg='#8c98b0', width=18, height=2, command=lambda: thread(part)).place(x=40, y=180)
 Button(f2, text='下载视频音频', bg='#8c98b0', width=18, height=2, command=lambda: thread(download)).place(x=220, y=59)
-Button(f2, text='番剧下载', bg='#8c98b0', width=18, height=2).place(x=220, y=119)
+Button(f2, text='樱花动漫下载', bg='#8c98b0', width=18, height=2, command=lambda: thread(animation)).place(x=220, y=119)
 Button(f2, text='检查更新', bg='#8c98b0', width=18, height=2, command=lambda: thread(update)).place(x=220, y=179)
-
 root.mainloop()
