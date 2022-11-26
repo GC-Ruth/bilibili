@@ -229,7 +229,7 @@ class yinhua:
             f2.write(data)
             print('解密完成！')
 
-    def thread_download(self, playlist, title, num, i, head):
+    def AES_thread_download(self, playlist, title, num, i, head):
         try:
             fin_ts = head + playlist[i]
             ts = requests.get(url=fin_ts, stream=True, timeout=20).content
@@ -260,36 +260,40 @@ class yinhua:
                     except Exception as error2:
                         print(f'节点{i}重试3次失败，停止重试！')
 
-    def png_thread_download(self, ts_url_list, title, num, i):
-        ts_url = 'https:' + ts_url_list[i] + 'png'
-        try:
-            ts = requests.get(url=ts_url, stream=True, timeout=30).content
-            with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
-                video.write(ts)
-                print(f'节点{i}下载完成')
-        except Exception as error:
-            print(f'节点{i}请求超时，正在重试！')
+    def thread_download(self, ts_url_list, title, num, i):
+        ts_url = ts_url_list[i]
+        ts_url.replace('\r', '')
+        if len(ts_url_list) != 0:
             try:
                 ts = requests.get(url=ts_url, stream=True, timeout=30).content
                 with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
                     video.write(ts)
+                    print(f'节点{i}下载完成')
             except Exception as error:
-                print(f'节点{i}重试1次失败，2次重试中！')
+                print(f'节点{i}请求超时，正在重试！')
                 try:
                     ts = requests.get(url=ts_url, stream=True, timeout=30).content
                     with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
                         video.write(ts)
                 except Exception as error:
-                    print(f'节点{i}重试2次失败，3次重试中！')
+                    print(f'节点{i}重试1次失败，2次重试中！')
                     try:
                         ts = requests.get(url=ts_url, stream=True, timeout=30).content
                         with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
                             video.write(ts)
                     except Exception as error:
-                        print(f'节点{i}重试3次失败，停止重试！')
+                        print(f'节点{i}重试2次失败，3次重试中！')
+                        try:
+                            ts = requests.get(url=ts_url, stream=True, timeout=30).content
+                            with open(f'./{title}{num}缓存文件夹/{str("%04d" % i)}.ts', 'wb') as video:
+                                video.write(ts)
+                        except Exception as error:
+                            print(f'节点{i}重试3次失败，停止重试！')
+        else:
+            messagebox.showerror(title='错误', message='下载失败')
 
     def download(self, m3u8_url, title, num, head):
-        ts_obj = 'https:(.*?)png'
+        ts_obj = '(https:.*)'
         try:
             print('正在解析...')
             play_list = requests.get(url=m3u8_url, headers=self.headers_yh, timeout=20).text
@@ -309,9 +313,9 @@ class yinhua:
                     a = 50
                 with ThreadPoolExecutor(max_workers=a) as pool1:
                     for pool_num in range(0, len(play_list)):
-                        pool1.submit(acg.png_thread_download, ts_url_list, title, num, pool_num)
+                        pool1.submit(acg.thread_download, ts_url_list, title, num, pool_num)
                     pool1.shutdown()
-                    print('下载完成')
+                    messagebox.showinfo(title='提示', message='下载完成！')
                 os.system(f'cd ./{title}{num}缓存文件夹 && copy /b *.ts video.mp4')
                 shutil.move(f'./{title}{num}缓存文件夹/video.mp4', f'./{title}/{title}{num}.mp4')
                 shutil.rmtree(f'./{title}{num}缓存文件夹')
@@ -325,15 +329,15 @@ class yinhua:
                     a = 50
                 with ThreadPoolExecutor(max_workers=a) as pool2:
                     for pool_num in range(0, len(playlist)):
-                        pool2.submit(acg.thread_download, playlist, title, num, pool_num, head)
+                        pool2.submit(acg.AES_thread_download, playlist, title, num, pool_num, head)
                     pool2.shutdown()
-                    print('下载完成')
+                    messagebox.showinfo(title='提示', message='下载完成！')
                 os.system(f'cd ./{title}{num}缓存文件夹 && copy /b *.ts video.mp4')
                 key = acg.get_key(m3u8_url, head)
                 acg.boom(f'./{title}{num}缓存文件夹/video.mp4', f'./{title}/{title}{num}.mp4', key, title, num)
                 shutil.rmtree(f'./{title}{num}缓存文件夹')
         except Exception as error:
-            pass
+            messagebox.showerror(title='错误', message='下载失败！')
 
 
 b1 = bilibili_video_get()
@@ -475,8 +479,8 @@ def animation():
     en3 = Entry(Facg, width=40)
     en3.place(x=100, y=50)
     Label(Facg, text='粘贴网址', font=('黑体', 12), bg='#cdc1ef').place(x=20, y=50)
-    Button(Facg, text='开始下载', font=('黑体', 25), bg='#cdc1ef', command=lambda: thread(acg_download)).place(x=120,y=120)
-    Button(Facg, text='返回', font=('黑体', 20), bg='#cdc1ef', command=lambda: [Facg.pack_forget(),f2.pack(fill='both', expand=True)]).place(x=160, y=185)
+    Button(Facg, text='开始下载', font=('黑体', 25), bg='#cdc1ef', command=lambda: thread(acg_download)).place(x=120,
+                                                                                                               y=120)
 
     def acg_download():
         try:
@@ -494,7 +498,6 @@ def animation():
             title = title.replace(':', '：')
             num = num.result()
             acg.download(m3u8_url, title, num, head)
-            messagebox.showinfo(title='提示', message='下载完成！！！')
             l1.place_forget()
         except Exception as error:
             l1.place_forget()
